@@ -1,0 +1,138 @@
+services:
+ 
+  traefik:
+    image: traefik:latest
+    container_name: nextcloud-traefik
+    command:
+      - "--api.insecure=true"
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--entrypoints.web.address=:80"
+      - "--entrypoints.websecure.address=:443"
+      - "--certificatesresolvers.myresolver.acme.httpchallenge=true"
+      - "--certificatesresolvers.myresolver.acme.httpchallenge.entrypoint=web"
+      - "--certificatesresolvers.myresolver.acme.email=madelsai2004@gmail.com"
+      - "--certificatesresolvers.myresolver.acme.storage=/letsencrypt/acme.json"
+      - "--entrypoints.websecure.http.middlewares=hsts"  # Enabling HSTS
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./letsencrypt:/letsencrypt
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.api.rule=Host(`traefik.localhost`)"  # Or use your domain
+      - "traefik.http.routers.api.service=api@internal"
+      - "traefik.http.routers.api.entrypoints=web"
+      - "traefik.http.middlewares.redirect-to-https.redirectscheme.scheme=https"
+      - "traefik.http.middlewares.hsts.headers.customresponseheaders.Strict-Transport-Security=max-age=15552000; includeSubDomains" 
+      - "traefik.http.routers.api.middlewares=redirect-to-https@docker"
+
+    networks:
+      - nextcloud-net
+    restart: unless-stopped
+  
+  nextcloud:
+    image: nextcloud:latest
+    container_name: nextcloud
+    depends_on:
+      - nextcloud-db
+      - redis
+      - clamav
+      - collabora
+    ports: 
+      - "8080:80" # Local access for testing or Tailscale
+    volumes:
+      - "D:\\nextcloud_data\\data:/var/www/html/data"
+      - "D:\\nextcloud_config:/var/www/html/config"
+      - "D:\\nextcloud_apps:/var/www/html/custom_apps"
+    environment:
+      - MYSQL_HOST=nextcloud-db
+      - MYSQL_DATABASE=nextcloud
+      - MYSQL_USER=nextclouduser
+      - MYSQL_PASSWORD=securepassword
+      - REDIS_HOST=redis
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.nextcloud.rule=Host(`mynextcloud2934.ddns.net`,'flash.reverse-elver.ts.net')"
+      - "traefik.http.routers.nextcloud.entrypoints=websecure"
+      - "traefik.http.routers.nextcloud.tls.certresolver=myresolver"
+      - "traefik.http.routers.nextcloud.middlewares=hsts@docker" # Applying HSTS
+      - "traefik.http.services.nextcloud.loadbalancer.server.port=80"
+      - "traefik.http.routers.nextcloud-http.rule=Host(`mynextcloud2934.ddns.net`,'flash.reverse-elver.ts.net')"
+      - "traefik.http.routers.nextcloud-http.entrypoints=web"
+      - "traefik.http.routers.nextcloud-http.middlewares=redirect-to-https@docker"
+    networks:
+      - nextcloud-net
+    restart: unless-stopped
+
+  nextcloud-db:
+    image: mariadb:11.7.2
+    container_name: nextcloud-db
+    command: --transaction-isolation=READ-COMMITTED --binlog-format=ROW
+    volumes:
+      - "D:\\nextcloud_data\\db:/var/lib/mysql"
+    environment:
+      - MYSQL_ROOT_PASSWORD=rootpassword
+      - MYSQL_DATABASE=nextcloud
+      - MYSQL_USER=nextclouduser
+      - MYSQL_PASSWORD=securepassword
+    networks:
+      - nextcloud-net
+    restart: unless-stopped
+
+  redis:
+    image: redis:latest
+    container_name: nextcloud-redis
+    # Using a volume for persistence (As we lose data on storing it on docker)
+    volumes: 
+    - "D:\\nextcloud_data\\redis:/data"
+    networks:
+      - nextcloud-net
+    restart: unless-stopped
+
+  clamav:
+    image: clamav/clamav:latest
+    container_name: nextcloud-clamav
+    volumes:
+      - "D:\\nextcloud_data\\clamav:/var/lib/clamav"
+    networks:
+      - nextcloud-net
+    restart: unless-stopped
+  
+  collabora:
+    image: collabora/code:latest
+    container_name: collabora
+    # Exposed port 9980 for external access if needed (optional, can be removed if only Traefik handles it)
+    ports:
+      - "9980:9980"
+    environment:
+      # Domain must match Nextcloud's domains, escaped with \\ for dots
+      - domain=mynextcloud2934\\.ddns\\.net|flash\\.reverse-elver\\.ts\\.net
+      # Optional: Admin credentials for Collabora admin panel
+      - username=admin
+      - password=securecollabora
+      # Ensures Collabora uses HTTPS when accessed via Traefik
+      - extra_params=--o:ssl.enable=true
+    labels:
+      - "traefik.enable=true"
+      # Route Collabora under a subdomain or path (e.g., collabora.yourdomain.com)
+      - "traefik.http.routers.collabora.rule=Host(`collabora.flash.reverse-elver.ts.net`)"
+      - "traefik.http.routers.collabora.entrypoints=websecure"
+      - "traefik.http.routers.collabora.tls.certresolver=myresolver"
+      - "traefik.http.services.collabora.loadbalancer.server.port=9980"
+      # Redirect HTTP to HTTPS for Collabora
+      - "traefik.http.routers.collabora-http.rule=Host(`collabora.flash.reverse-elver.ts.net`)"
+      - "traefik.http.routers.collabora-http.entrypoints=web"
+      - "traefik.http.routers.collabora-http.middlewares=redirect-to-https@docker"
+    networks:
+      - nextcloud-net
+    restart: unless-stopped
+
+networks:
+  nextcloud-net:
+    driver: bridge
+
+volumes:
+  letsencrypt:
