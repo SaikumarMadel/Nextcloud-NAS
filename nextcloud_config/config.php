@@ -34,11 +34,7 @@ $CONFIG = array (
     0 => 'localhost',
     1 => '100.105.98.104',
     2 => 'mynextcloud2934.ddns.net',
-    3 => '192.168.4.17',
-    4 => 'localhost:8090',
-    5 => '[2409:40c2:1048:66c9:190a:6a43:6b9d:f146]',
-    6 => '152.58.33.250',
-    7 => 'flash.reverse-elver.ts.net',
+    3 => 'flash.reverse-elver.ts.net',
   ),
   'trusted_proxies' => 
   array (
@@ -85,7 +81,7 @@ $CONFIG = array (
   'mail_smtpauth' => 1,
   'mail_smtpport' => '587',
   'mail_smtpname' => 'madelsai2004@gmail.com',
-  'mail_smtppassword' => 'semy iupr mfav byxe',
+  'mail_smtppassword' => '**** **** ****',
   'mail_from_address' => 'madelsai2004',
   'mail_domain' => 'gmail.com',
   'memcache.distributed' => '\\OC\\Memcache\\Redis',
